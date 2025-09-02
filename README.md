@@ -8,13 +8,9 @@ as a first step before we render 4" x 6" labels (portrait/landscape).
 1. `npm install`
 2. Create `.env` from `.env.example` and set:
    - `BASE_URL` (e.g. `https://impressionsvanity.infopluswms.com/infoplus-wms/api/beta`)
-   - `API_KEY` F84FA704481F625B13CE85B4650B28BCEAF260C5A7CE81203756565F038307F3
+   - `API_KEY` 
 3. `npm run dev` (or `npm start`)
 4. Open http://localhost:3000
-   API_BASE_URL=https://impressionsvanity.infopluswms.com/infoplus-wms/api/beta
-   API_KEY=F84FA704481F625B13CE85B4650B28BCEAF260C5A7CE81203756565F038307F3
-
-PORT=3000
 
 ## Notes
 
@@ -26,3 +22,4 @@ PORT=3000
 
 - Add a printable 4x6 label (both orientations) populated from the fetched data.
 - Optionally add field mapping and validation of the response.
+
