@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Infoplus Returns Lookup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <img src="images/iv-app-logo.png" alt="App Logo" class="app-logo" />
+      <div class="title-wrap">
+        <h1>Infoplus Returns Lookup</h1>
+        <p>Search by <code>originalOrderNo</code>, preview JSON, and print 4×6 labels (portrait only).</p>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <form id="search-form">
+          <label for="originalOrderNo">Original Order No</label>
+          <input type="number" id="originalOrderNo" name="originalOrderNo" placeholder="e.g., 95243" required min="1" />
+          <button type="submit">Search</button>
+
+          <div class="printer-controls">
+            <label for="zebraHost">Zebra IP</label>
+            <input type="text" id="zebraHost" placeholder="e.g., 192.168.1.50" />
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="json-header">
+          <h2>Results</h2>
+          <div class="action-bar">
+            <button id="pdf-all">Preview All (PDF)</button>
+            <button id="zpl-all">Download All (ZPL)</button>
+            <button id="print-all">Print All</button>
+            <button id="toggle-raw">Toggle Raw JSON</button>
+          </div>
+        </div>
+        <div id="results"></div>
+        <pre id="json-output" class="json-output" hidden>// Raw response here</pre>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Dark theme • Segoe UI Light • Modern UI</span>
+    </footer>
+
+    <script src="main.js"></script>
+  </body>
+</html>
