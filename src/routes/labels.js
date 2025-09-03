@@ -27,11 +27,11 @@ function normalizeItem(item) {
     returnReason: item['Reason'],
     returnCategory: item['Category'],
     returnInstructions: item['Instructions'],
-    returnItemReceiptId: item['Rcpt Id'],
+    returnItemReceiptId: item['Receipt Id'] ?? item['Rcpt Id'], // accept both
     sku: item['SKU'],
-    originalShippedQuantity: item['Shipped'],
-    expectedReturnQuantity: item['Expected'],
-    actualReturnQuantity: item['Actual'],
+    originalShippedQuantity: item['Shipped'] ?? item['Shipped Qty'],
+    expectedReturnQuantity: item['Expected'] ?? item['Expected Qty'],
+    actualReturnQuantity: item['Actual'] ?? item['Actual Qty'],
     returnOrderLineInspectionStatus: item['Condition'],
     ivcStatus: item['IVC Status'],
     lobId: item._meta?._lobId,
@@ -122,10 +122,10 @@ router.post('/preview-pdf', async (req, res) => {
       Number(count) || Number(norm.actualReturnQuantity) || 1
     );
 
-    const { stream, filename } = await buildReturnLabelPdf(norm, c);
+    const { path: outPath, filename } = await buildReturnLabelPdf(norm, c);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    stream.pipe(res);
+    fs.createReadStream(outPath).pipe(res);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
@@ -205,10 +205,12 @@ router.post('/preview-pdf-all', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'items[] required' });
     }
     const normalized = items.map(normalizeItem);
-    const { stream, filename } = await buildReturnLabelPdfMulti(normalized);
+    const { path: outPath, filename } = await buildReturnLabelPdfMulti(
+      normalized
+    );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    stream.pipe(res);
+    fs.createReadStream(outPath).pipe(res);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
@@ -218,10 +220,10 @@ router.post('/preview-pdf-all', async (req, res) => {
  * GET /api/labels/printers
  * List installed OS printers (for the dropdown)
  */
-router.get('/printers', (req, res) => {
+router.get('/printers', async (req, res) => {
   try {
-    const printers = listPrinters();
-    const def = getDefaultPrinterName();
+    const printers = await listPrinters();
+    const def = await getDefaultPrinterName();
     res.json({ ok: true, defaultPrinter: def, printers });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -247,23 +249,9 @@ router.post('/print-pdf-os', async (req, res) => {
       Number(count) || Number(norm.actualReturnQuantity) || 1
     );
 
-    const { stream, filename } = await buildReturnLabelPdf(norm, copies);
-    const tmpDir = os.tmpdir();
-    const outPath = path.join(tmpDir, filename);
-
-    const fileOut = fs.createWriteStream(outPath);
-    stream.pipe(fileOut);
-    fileOut.on('finish', async () => {
-      try {
-        const result = await printPdf(outPath, printerName);
-        res.json({ ok: true, result });
-      } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-      }
-    });
-    fileOut.on('error', (e) =>
-      res.status(500).json({ ok: false, error: e.message })
-    );
+    const { path: outPath } = await buildReturnLabelPdf(norm, copies);
+    const result = await printPdf(outPath, printerName);
+    res.json({ ok: true, result });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

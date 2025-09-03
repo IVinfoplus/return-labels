@@ -14,119 +14,146 @@ function formatDateMMDDYYYY(dateStr) {
   return `${mm}/${dd}/${yyyy}`;
 }
 
-/**
- * Portrait-only 4x6 PDF label with:
- * - Title "RETURNS" (ALL CAPS) top-right
- * - Date as MM/DD/YYYY
- * - Extra space between rule and SKU
- * - SKU centered, bigger, bold-ish (size bump) above barcode
- * - Barcode of SKU
- * - IVC Status centered, HUGE, bold, last element on label (wrapped, no label)
- * - Footer text removed
- */
+// --- draw a single portrait 4x6 page ---
 async function drawLabel(doc, item) {
-  const { width } = doc.page;
+  const { width, height } = doc.page;
 
   const LEFT = 12;
   const RIGHT = width - 12;
   const LINE_W = width - 24;
+  const BOTTOM_PAD = 18; // reserved bottom pad for preprinted text
 
-  // Pick logo by lobId -> load SVG -> PNG buffer
   const useModern = Number(item.lobId) !== 19816;
   const logoSvgPath = path.join(
-    __dirname, '..', 'public', 'images',
+    __dirname,
+    '..',
+    'public',
+    'images',
     useModern ? 'modernMirrors-logo.svg' : 'impressions-logo.svg'
   );
 
   let logoPng = null;
-  try { logoPng = await sharp(logoSvgPath).png().toBuffer(); } catch {}
+  try {
+    logoPng = await sharp(logoSvgPath).png().toBuffer();
+  } catch {}
 
-  // Barcode buffer for SKU (Code128)
+  // Shorter barcode to keep space for IVC
   const bcBuffer = await bwipjs.toBuffer({
     bcid: 'code128',
     text: String(item.sku || ''),
     scale: 2,
-    height: 18,
+    height: 16,
     includetext: false,
-    textxalign: 'center'
+    textxalign: 'center',
   });
 
-  // Header
-  const headerTop = 10;
+  // Header — logo moved *up* slightly so it doesn't overlap the rule
+  const headerTop = 22;
   if (logoPng) {
-    const logoW = 120;
+    const logoW = 118;
     doc.image(logoPng, LEFT, headerTop, { width: logoW });
   }
-  // Title on right (ALL CAPS)
-  doc.fontSize(16).text('RETURNS', LEFT, headerTop, { width: LINE_W, align: 'right' });
+  doc
+    .fontSize(18)
+    .text('RETURNS', LEFT, headerTop, { width: LINE_W, align: 'right' });
 
-  // Divider under header
-  doc.moveTo(LEFT, 78).lineTo(RIGHT, 78).stroke();
+  // First divider just below logo
+  doc.moveTo(LEFT, 86).lineTo(RIGHT, 86).stroke();
 
   // Fields
-  let y = 86;
+  let y = 96;
   const dateStr = formatDateMMDDYYYY(item.createDate);
-  doc.fontSize(9);
+  doc.fontSize(10);
 
   const line = (k, v) => {
     doc.text(`${k}: ${v ?? ''}`, LEFT, y, { width: LINE_W });
-    y += 14;
+    y += 16;
   };
 
   line('Date', dateStr);
   line('Order #', item.originalOrderNo);
   line('ASN #', item.returnAsnId);
 
-  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke(); y += 8;
+  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
+  y += 10;
 
   line('Return Status', item.returnOrderStatus);
   line('Reason', item.returnReason);
   line('Category', item.returnCategory);
   line('Instructions', item.returnInstructions);
 
-  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke(); y += 8;
+  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
+  y += 10;
 
-  line('Rcpt Id', item.returnItemReceiptId);
-  line('Shipped Qty', item.originalShippedQuantity);
-  line('Expected Qty', item.expectedReturnQuantity);
-  line('Actual Qty', item.actualReturnQuantity);
+  line('Receipt Id', item.returnItemReceiptId);
   line('Condition', item.returnOrderLineInspectionStatus);
 
-  // Horizontal rule then EXTRA spacing before SKU
-  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke(); 
-  y += 16; // extra gap (was 8)
+  // Compact qty row (Shp / Exp / Act)
+  const qtyY = y;
+  const colW = Math.floor(LINE_W / 3);
+  doc
+    .fontSize(10)
+    .text(`Shp: ${item.originalShippedQuantity ?? ''}`, LEFT + 0 * colW, qtyY, {
+      width: colW,
+      align: 'center',
+    })
+    .text(`Exp: ${item.expectedReturnQuantity ?? ''}`, LEFT + 1 * colW, qtyY, {
+      width: colW,
+      align: 'center',
+    })
+    .text(`Act: ${item.actualReturnQuantity ?? ''}`, LEFT + 2 * colW, qtyY, {
+      width: colW,
+      align: 'center',
+    });
 
-  // SKU centered, bigger
-  doc.fontSize(14).text(String(item.sku ?? ''), LEFT, y, { width: LINE_W, align: 'center' });
-  y += 20;
+  y = qtyY + 18;
 
-  // Barcode
-  const bcW = LINE_W;
-  doc.image(bcBuffer, LEFT, y, { width: bcW });
-  y += 72;
+  // Divider before SKU
+  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
+  y += 16;
 
-  // IVC Status: last thing, HUGE, bold, centered, wrapped, no label
+  // SKU (centered)
+  doc
+    .fontSize(16)
+    .text(String(item.sku ?? ''), LEFT, y, { width: LINE_W, align: 'center' });
+  y += 24;
+
+  // Barcode (shorter)
+  doc.image(bcBuffer, LEFT, y, { width: LINE_W });
+  y += 68;
+
+  // Push IVC to near-bottom with safe padding
+  const spaceLeft = height - BOTTOM_PAD - y;
+  if (spaceLeft > 0) y += spaceLeft - 6;
+
   if (item.ivcStatus) {
-    doc.font('Helvetica-Bold').fontSize(18)
-      .text(String(item.ivcStatus), LEFT, y, { width: LINE_W, align: 'center' });
-    // no further footer so it stays the last element
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(20)
+      .text(String(item.ivcStatus), LEFT, y, {
+        width: LINE_W,
+        align: 'center',
+      });
   }
 
-  // Reset font to default for next page
-  doc.font('Helvetica').fontSize(9);
+  doc.font('Helvetica').fontSize(10); // reset for next page
 }
 
-/**
- * Build a PDF for a single item repeated "count" times. Portrait only (4x6).
- */
+// Build a single-label PDF, saved to tmp, and return its file path
 async function buildReturnLabelPdf(item, count = 1) {
   const pageSize = [288, 432]; // 4x6 at 72dpi
   const filename = `return-label-${item.originalOrderNo}-${item.sku}-portrait.pdf`;
-
-  try { fs.mkdirSync(path.join(__dirname, '..', '..', 'tmp'), { recursive: true }); } catch {}
-
   const outPath = path.join(__dirname, '..', '..', 'tmp', filename);
-  const doc = new PDFDocument({ size: pageSize, margin: 12, autoFirstPage: false });
+
+  fs.mkdirSync(path.join(__dirname, '..', '..', 'tmp'), { recursive: true });
+
+  const doc = new PDFDocument({
+    size: pageSize,
+    margin: 12,
+    autoFirstPage: false,
+  });
+  const fileStream = fs.createWriteStream(outPath);
+  doc.pipe(fileStream);
 
   for (let i = 0; i < count; i++) {
     doc.addPage();
@@ -134,27 +161,31 @@ async function buildReturnLabelPdf(item, count = 1) {
     await drawLabel(doc, item);
   }
 
-  const fileStream = fs.createWriteStream(outPath);
-  const writeStream = doc.pipe(fileStream);
   doc.end();
 
-  return await new Promise((resolve, reject) => {
-    writeStream.on('finish', () => resolve({ stream: fs.createReadStream(outPath), filename }));
-    writeStream.on('error', reject);
+  await new Promise((resolve, reject) => {
+    fileStream.on('finish', resolve);
+    fileStream.on('error', reject);
   });
+
+  return { path: outPath, filename };
 }
 
-/**
- * Build a single multi-page PDF for many items. Portrait only (4x6).
- */
+// Build a multi-label PDF (batch), saved to tmp, and return its file path
 async function buildReturnLabelPdfMulti(items) {
   const pageSize = [288, 432];
   const filename = `return-labels-batch-portrait.pdf`;
-
-  try { fs.mkdirSync(path.join(__dirname, '..', '..', 'tmp'), { recursive: true }); } catch {}
-
   const outPath = path.join(__dirname, '..', '..', 'tmp', filename);
-  const doc = new PDFDocument({ size: pageSize, margin: 12, autoFirstPage: false });
+
+  fs.mkdirSync(path.join(__dirname, '..', '..', 'tmp'), { recursive: true });
+
+  const doc = new PDFDocument({
+    size: pageSize,
+    margin: 12,
+    autoFirstPage: false,
+  });
+  const fileStream = fs.createWriteStream(outPath);
+  doc.pipe(fileStream);
 
   for (const item of items) {
     const count = Math.max(1, Number(item.actualReturnQuantity) || 1);
@@ -165,14 +196,14 @@ async function buildReturnLabelPdfMulti(items) {
     }
   }
 
-  const fileStream = fs.createWriteStream(outPath);
-  const writeStream = doc.pipe(fileStream);
   doc.end();
 
-  return await new Promise((resolve, reject) => {
-    writeStream.on('finish', () => resolve({ stream: fs.createReadStream(outPath), filename }));
-    writeStream.on('error', reject);
+  await new Promise((resolve, reject) => {
+    fileStream.on('finish', resolve);
+    fileStream.on('error', reject);
   });
+
+  return { path: outPath, filename };
 }
 
 module.exports = { buildReturnLabelPdf, buildReturnLabelPdfMulti };
