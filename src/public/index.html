@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Returns Lookup</title>
+    <title>Infoplus Returns Lookup</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -10,8 +10,11 @@
     <header class="app-header">
       <img src="images/iv-app-logo.png" alt="App Logo" class="app-logo" />
       <div class="title-wrap">
-        <h1>Returns Lookup</h1>
-        <p>Search by original order number.</p>
+        <h1>Infoplus Returns Lookup</h1>
+        <p>
+          Search by <code>originalOrderNo</code>, preview JSON, and print 4×6
+          labels (portrait only).
+        </p>
       </div>
     </header>
 
@@ -27,16 +30,26 @@
             required
             min="1"
           />
-          <button type="submit">Search</button>
 
           <div class="printer-controls">
-            <label for="zebraHost">Zebra IP</label>
-            <input
-              type="text"
-              id="zebraHost"
-              placeholder="e.g., 192.168.1.50"
-            />
+            <div class="col">
+              <label for="printerName">OS Printer</label>
+              <select id="printerName">
+                <option value="">(default)</option>
+              </select>
+            </div>
+
+            <div class="col">
+              <label for="zebraHost">Zebra IP</label>
+              <input
+                type="text"
+                id="zebraHost"
+                placeholder="e.g., 192.168.1.50"
+              />
+            </div>
           </div>
+
+          <button type="submit">Search</button>
         </form>
       </section>
 
@@ -46,7 +59,7 @@
           <div class="action-bar">
             <button id="pdf-all">Preview All (PDF)</button>
             <button id="zpl-all">Download All (ZPL)</button>
-            <button id="print-all">Print All</button>
+            <button id="print-all">Print All (Zebra IP)</button>
             <button id="toggle-raw">Toggle Raw JSON</button>
           </div>
         </div>

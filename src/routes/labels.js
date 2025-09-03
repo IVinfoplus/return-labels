@@ -1,7 +1,19 @@
 const express = require('express');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
 const { buildReturnLabelZPL } = require('../labels/zplTemplate');
-const { buildReturnLabelPdf, buildReturnLabelPdfMulti } = require('../labels/buildPdf');
+const {
+  buildReturnLabelPdf,
+  buildReturnLabelPdfMulti,
+} = require('../labels/buildPdf');
 const { sendZplToZebra } = require('../print/zebraRaw9100');
+const {
+  listPrinters,
+  printPdf,
+  getDefaultPrinterName,
+} = require('../print/osPrint');
 
 const router = express.Router();
 
@@ -22,7 +34,7 @@ function normalizeItem(item) {
     actualReturnQuantity: item['Actual'],
     returnOrderLineInspectionStatus: item['Condition'],
     ivcStatus: item['IVC Status'],
-    lobId: item._meta?._lobId
+    lobId: item._meta?._lobId,
   };
 }
 
@@ -35,10 +47,15 @@ router.post('/zpl', async (req, res) => {
   try {
     const { item, count = 1 } = req.body || {};
     if (!item || !item['SKU']) {
-      return res.status(400).json({ ok: false, error: 'Body must include item with SKU' });
+      return res
+        .status(400)
+        .json({ ok: false, error: 'Body must include item with SKU' });
     }
     const norm = normalizeItem(item);
-    const c = Math.max(1, Number(count) || Number(norm.actualReturnQuantity) || 1);
+    const c = Math.max(
+      1,
+      Number(count) || Number(norm.actualReturnQuantity) || 1
+    );
 
     let payload = '';
     for (let i = 0; i < c; i++) {
@@ -59,18 +76,27 @@ router.post('/zpl', async (req, res) => {
 router.post('/print-zpl', async (req, res) => {
   try {
     const { item, count = 1, zebraHost, port = 9100 } = req.body || {};
-    if (!item || !item['SKU']) return res.status(400).json({ ok: false, error: 'Missing item.SKU' });
-    if (!zebraHost) return res.status(400).json({ ok: false, error: 'Missing zebraHost' });
+    if (!item || !item['SKU'])
+      return res.status(400).json({ ok: false, error: 'Missing item.SKU' });
+    if (!zebraHost)
+      return res.status(400).json({ ok: false, error: 'Missing zebraHost' });
 
     const norm = normalizeItem(item);
-    const c = Math.max(1, Number(count) || Number(norm.actualReturnQuantity) || 1);
+    const c = Math.max(
+      1,
+      Number(count) || Number(norm.actualReturnQuantity) || 1
+    );
 
     let payload = '';
     for (let i = 0; i < c; i++) {
       payload += buildReturnLabelZPL(norm) + '\n';
     }
 
-    const result = await sendZplToZebra(zebraHost, Number(port) || 9100, payload);
+    const result = await sendZplToZebra(
+      zebraHost,
+      Number(port) || 9100,
+      payload
+    );
     res.json({ ok: true, sent: c, result });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -86,10 +112,15 @@ router.post('/preview-pdf', async (req, res) => {
   try {
     const { item, count = 1 } = req.body || {};
     if (!item || !item['SKU']) {
-      return res.status(400).json({ ok: false, error: 'Body must include item with SKU' });
+      return res
+        .status(400)
+        .json({ ok: false, error: 'Body must include item with SKU' });
     }
     const norm = normalizeItem(item);
-    const c = Math.max(1, Number(count) || Number(norm.actualReturnQuantity) || 1);
+    const c = Math.max(
+      1,
+      Number(count) || Number(norm.actualReturnQuantity) || 1
+    );
 
     const { stream, filename } = await buildReturnLabelPdf(norm, c);
     res.setHeader('Content-Type', 'application/pdf');
@@ -138,7 +169,8 @@ router.post('/print-all', async (req, res) => {
     if (!Array.isArray(items) || !items.length) {
       return res.status(400).json({ ok: false, error: 'items[] required' });
     }
-    if (!zebraHost) return res.status(400).json({ ok: false, error: 'Missing zebraHost' });
+    if (!zebraHost)
+      return res.status(400).json({ ok: false, error: 'Missing zebraHost' });
 
     let payload = '';
     let total = 0;
@@ -150,7 +182,11 @@ router.post('/print-all', async (req, res) => {
         payload += buildReturnLabelZPL(norm) + '\n';
       }
     }
-    const result = await sendZplToZebra(zebraHost, Number(port) || 9100, payload);
+    const result = await sendZplToZebra(
+      zebraHost,
+      Number(port) || 9100,
+      payload
+    );
     res.json({ ok: true, total, result });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -175,6 +211,61 @@ router.post('/preview-pdf-all', async (req, res) => {
     stream.pipe(res);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/labels/printers
+ * List installed OS printers (for the dropdown)
+ */
+router.get('/printers', (req, res) => {
+  try {
+    const printers = listPrinters();
+    const def = getDefaultPrinterName();
+    res.json({ ok: true, defaultPrinter: def, printers });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
+ * POST /api/labels/print-pdf-os
+ * Body: { item, count, printerName? }
+ * Builds the PDF (count pages) then sends to OS print spooler.
+ */
+router.post('/print-pdf-os', async (req, res) => {
+  try {
+    const { item, count = 1, printerName } = req.body || {};
+    if (!item || !item['SKU']) {
+      return res
+        .status(400)
+        .json({ ok: false, error: 'Missing item with SKU' });
+    }
+    const norm = normalizeItem(item);
+    const copies = Math.max(
+      1,
+      Number(count) || Number(norm.actualReturnQuantity) || 1
+    );
+
+    const { stream, filename } = await buildReturnLabelPdf(norm, copies);
+    const tmpDir = os.tmpdir();
+    const outPath = path.join(tmpDir, filename);
+
+    const fileOut = fs.createWriteStream(outPath);
+    stream.pipe(fileOut);
+    fileOut.on('finish', async () => {
+      try {
+        const result = await printPdf(outPath, printerName);
+        res.json({ ok: true, result });
+      } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+      }
+    });
+    fileOut.on('error', (e) =>
+      res.status(500).json({ ok: false, error: e.message })
+    );
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 
