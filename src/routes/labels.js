@@ -1,9 +1,7 @@
 const express = require('express');
 const fs = require('fs');
-const os = require('os');
-const path = require('path');
 
-const { buildReturnLabelZPL } = require('../labels/zplTemplate');
+const { buildReturnLabelZPL } = require('../labels/zplTemplate'); // CJS
 const {
   buildReturnLabelPdf,
   buildReturnLabelPdfMulti,
@@ -27,7 +25,7 @@ function normalizeItem(item) {
     returnReason: item['Reason'],
     returnCategory: item['Category'],
     returnInstructions: item['Instructions'],
-    returnItemReceiptId: item['Receipt Id'] ?? item['Rcpt Id'], // accept both
+    returnItemReceiptId: item['Receipt Id'] ?? item['Rcpt Id'], // accept legacy key
     sku: item['SKU'],
     originalShippedQuantity: item['Shipped'] ?? item['Shipped Qty'],
     expectedReturnQuantity: item['Expected'] ?? item['Expected Qty'],
@@ -132,6 +130,56 @@ router.post('/preview-pdf', async (req, res) => {
 });
 
 /**
+ * POST /api/labels/preview-pdf-all
+ * Body: { items }
+ * Streams a single multi-page PDF with all labels (portrait only)
+ */
+router.post('/preview-pdf-all', async (req, res) => {
+  try {
+    const { items } = req.body || {};
+    if (!Array.isArray(items) || !items.length) {
+      return res.status(400).json({ ok: false, error: 'items[] required' });
+    }
+    const normalized = items.map(normalizeItem);
+    const { path: outPath, filename } = await buildReturnLabelPdfMulti(
+      normalized
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(outPath).pipe(res);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/labels/print-pdf-os
+ * Body: { item, count, printerName? }
+ * Builds the PDF (count pages) then sends to OS print spooler.
+ */
+router.post('/print-pdf-os', async (req, res) => {
+  try {
+    const { item, count = 1, printerName } = req.body || {};
+    if (!item || !item['SKU']) {
+      return res
+        .status(400)
+        .json({ ok: false, error: 'Missing item with SKU' });
+    }
+    const norm = normalizeItem(item);
+    const copies = Math.max(
+      1,
+      Number(count) || Number(norm.actualReturnQuantity) || 1
+    );
+
+    const { path: outPath } = await buildReturnLabelPdf(norm, copies);
+    const result = await printPdf(outPath, printerName);
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
  * POST /api/labels/zpl-all
  * Body: { items }
  * Returns combined ZPL payload for all lines; each repeated by "Actual" (portrait only)
@@ -194,64 +242,13 @@ router.post('/print-all', async (req, res) => {
 });
 
 /**
- * POST /api/labels/preview-pdf-all
- * Body: { items }
- * Streams a single multi-page PDF with all labels (portrait only)
- */
-router.post('/preview-pdf-all', async (req, res) => {
-  try {
-    const { items } = req.body || {};
-    if (!Array.isArray(items) || !items.length) {
-      return res.status(400).json({ ok: false, error: 'items[] required' });
-    }
-    const normalized = items.map(normalizeItem);
-    const { path: outPath, filename } = await buildReturnLabelPdfMulti(
-      normalized
-    );
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    fs.createReadStream(outPath).pipe(res);
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-/**
  * GET /api/labels/printers
- * List installed OS printers (for the dropdown)
  */
-router.get('/printers', async (req, res) => {
+router.get('/printers', async (_req, res) => {
   try {
     const printers = await listPrinters();
     const def = await getDefaultPrinterName();
     res.json({ ok: true, defaultPrinter: def, printers });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-/**
- * POST /api/labels/print-pdf-os
- * Body: { item, count, printerName? }
- * Builds the PDF (count pages) then sends to OS print spooler.
- */
-router.post('/print-pdf-os', async (req, res) => {
-  try {
-    const { item, count = 1, printerName } = req.body || {};
-    if (!item || !item['SKU']) {
-      return res
-        .status(400)
-        .json({ ok: false, error: 'Missing item with SKU' });
-    }
-    const norm = normalizeItem(item);
-    const copies = Math.max(
-      1,
-      Number(count) || Number(norm.actualReturnQuantity) || 1
-    );
-
-    const { path: outPath } = await buildReturnLabelPdf(norm, copies);
-    const result = await printPdf(outPath, printerName);
-    res.json({ ok: true, result });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

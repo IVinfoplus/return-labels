@@ -16,12 +16,19 @@ function formatDateMMDDYYYY(dateStr) {
 
 // --- draw a single portrait 4x6 page ---
 async function drawLabel(doc, item) {
-  const { width, height } = doc.page;
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
 
   const LEFT = 12;
-  const RIGHT = width - 12;
-  const LINE_W = width - 24;
-  const BOTTOM_PAD = 18; // reserved bottom pad for preprinted text
+  const RIGHT = pageW - 12;
+  const LINE_W = pageW - 24;
+
+  // === shift everything up 1/4" (18 pts) ===
+  const yOffset = -18;
+
+  const PREPRINT_PAD = 18;
+  const IVC_BOX_H = 36;
+  const IVC_Y = pageH - PREPRINT_PAD - IVC_BOX_H + yOffset;
 
   const useModern = Number(item.lobId) !== 19816;
   const logoSvgPath = path.join(
@@ -37,18 +44,17 @@ async function drawLabel(doc, item) {
     logoPng = await sharp(logoSvgPath).png().toBuffer();
   } catch {}
 
-  // Shorter barcode to keep space for IVC
   const bcBuffer = await bwipjs.toBuffer({
     bcid: 'code128',
     text: String(item.sku || ''),
     scale: 2,
-    height: 16,
+    height: 14,
     includetext: false,
     textxalign: 'center',
   });
 
-  // Header — logo moved *up* slightly so it doesn't overlap the rule
-  const headerTop = 22;
+  // --- Header (logo + RETURNS) ---
+  const headerTop = 20 + yOffset;
   if (logoPng) {
     const logoW = 118;
     doc.image(logoPng, LEFT, headerTop, { width: logoW });
@@ -57,11 +63,13 @@ async function drawLabel(doc, item) {
     .fontSize(18)
     .text('RETURNS', LEFT, headerTop, { width: LINE_W, align: 'right' });
 
-  // First divider just below logo
-  doc.moveTo(LEFT, 86).lineTo(RIGHT, 86).stroke();
+  doc
+    .moveTo(LEFT, 84 + yOffset)
+    .lineTo(RIGHT, 84 + yOffset)
+    .stroke();
 
-  // Fields
-  let y = 96;
+  // --- Fields block ---
+  let y = 94 + yOffset;
   const dateStr = formatDateMMDDYYYY(item.createDate);
   doc.fontSize(10);
 
@@ -88,7 +96,7 @@ async function drawLabel(doc, item) {
   line('Receipt Id', item.returnItemReceiptId);
   line('Condition', item.returnOrderLineInspectionStatus);
 
-  // Compact qty row (Shp / Exp / Act)
+  // --- Qty row (Shp/Exp/Act) ---
   const qtyY = y;
   const colW = Math.floor(LINE_W / 3);
   doc
@@ -105,43 +113,40 @@ async function drawLabel(doc, item) {
       width: colW,
       align: 'center',
     });
-
   y = qtyY + 18;
 
-  // Divider before SKU
   doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
-  y += 16;
+  y += 14;
 
-  // SKU (centered)
+  // --- SKU + barcode ---
+  const CONTENT_BOTTOM = IVC_Y - 6;
+  const skuText = String(item.sku ?? '');
   doc
     .fontSize(16)
-    .text(String(item.sku ?? ''), LEFT, y, { width: LINE_W, align: 'center' });
-  y += 24;
+    .text(skuText, LEFT, Math.min(y, CONTENT_BOTTOM - 90), {
+      width: LINE_W,
+      align: 'center',
+    });
+  y += 22;
 
-  // Barcode (shorter)
-  doc.image(bcBuffer, LEFT, y, { width: LINE_W });
-  y += 68;
+  const bcY = Math.min(y, CONTENT_BOTTOM - 58);
+  doc.image(bcBuffer, LEFT, bcY, { width: LINE_W });
+  y = bcY + 58;
 
-  // Push IVC to near-bottom with safe padding
-  const spaceLeft = height - BOTTOM_PAD - y;
-  if (spaceLeft > 0) y += spaceLeft - 6;
-
+  // --- IVC footer ---
   if (item.ivcStatus) {
+    const ivc = String(item.ivcStatus);
     doc
       .font('Helvetica-Bold')
       .fontSize(20)
-      .text(String(item.ivcStatus), LEFT, y, {
-        width: LINE_W,
-        align: 'center',
-      });
+      .text(ivc, LEFT, IVC_Y + 4, { width: LINE_W, align: 'center' });
   }
 
-  doc.font('Helvetica').fontSize(10); // reset for next page
+  doc.font('Helvetica').fontSize(10);
 }
 
-// Build a single-label PDF, saved to tmp, and return its file path
 async function buildReturnLabelPdf(item, count = 1) {
-  const pageSize = [288, 432]; // 4x6 at 72dpi
+  const pageSize = [288, 432];
   const filename = `return-label-${item.originalOrderNo}-${item.sku}-portrait.pdf`;
   const outPath = path.join(__dirname, '..', '..', 'tmp', filename);
 
@@ -157,7 +162,6 @@ async function buildReturnLabelPdf(item, count = 1) {
 
   for (let i = 0; i < count; i++) {
     doc.addPage();
-    // eslint-disable-next-line no-await-in-loop
     await drawLabel(doc, item);
   }
 
@@ -171,7 +175,6 @@ async function buildReturnLabelPdf(item, count = 1) {
   return { path: outPath, filename };
 }
 
-// Build a multi-label PDF (batch), saved to tmp, and return its file path
 async function buildReturnLabelPdfMulti(items) {
   const pageSize = [288, 432];
   const filename = `return-labels-batch-portrait.pdf`;
@@ -191,7 +194,6 @@ async function buildReturnLabelPdfMulti(items) {
     const count = Math.max(1, Number(item.actualReturnQuantity) || 1);
     for (let i = 0; i < count; i++) {
       doc.addPage();
-      // eslint-disable-next-line no-await-in-loop
       await drawLabel(doc, item);
     }
   }
