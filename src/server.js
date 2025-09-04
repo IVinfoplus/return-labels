@@ -24,6 +24,10 @@ if (typeof labelsRouter !== 'function') {
 }
 app.use('/api/labels', labelsRouter);
 
+// Mount returnOrders router
+const returnOrdersRouter = require('./routes/returnOrders');
+app.use('/api/returns', returnOrdersRouter);
+
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.listen(PORT, () =>
   console.log(`Server listening on http://localhost:${PORT}`)

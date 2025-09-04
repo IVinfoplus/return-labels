@@ -40,6 +40,7 @@ html, body {
   box-shadow: var(--shadow);
   padding: 18px;
   margin-top: 16px;
+  width: 920px;
 }
 
 form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }

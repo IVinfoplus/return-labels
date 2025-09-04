@@ -23,12 +23,12 @@
         <form id="search-form">
           <label for="originalOrderNo">Original Order No</label>
           <input
-            type="number"
+            type="text"
             id="originalOrderNo"
             name="originalOrderNo"
             placeholder="e.g., 95243"
             required
-            min="1"
+            inputmode="numeric"
           />
 
           <div class="printer-controls">
@@ -58,14 +58,14 @@
           <h2>Results</h2>
           <div class="action-bar">
             <button id="pdf-all">Preview All (PDF)</button>
-            <button id="zpl-all">Download All (ZPL)</button>
-            <button id="print-all">Print All (Zebra IP)</button>
+            <!-- <button id="zpl-all">Download All (ZPL)</button> -->
+            <button id="print-all-pdf">Print All (PDF)</button>
+            <!-- <button id="print-all">Print All (Zebra IP)</button> -->
             <button id="toggle-raw">Toggle Raw JSON</button>
           </div>
         </div>
         <div id="results"></div>
-<pre id="json-output" class="json-output" hidden>
-// Raw response here</pre>
+<pre id="json-output" class="json-output" hidden></pre>
     </main>
 
     <footer class="footer">

@@ -1,3 +1,5 @@
+// ...existing code...
+
 const express = require('express');
 const fs = require('fs');
 
@@ -206,7 +208,6 @@ router.post('/zpl-all', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
-
 /**
  * POST /api/labels/print-all
  * Body: { items, zebraHost, port }

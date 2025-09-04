@@ -3,8 +3,9 @@ const output = document.getElementById('json-output');
 const resultsDiv = document.getElementById('results');
 const toggleRawBtn = document.getElementById('toggle-raw');
 const pdfAllBtn = document.getElementById('pdf-all');
-const zplAllBtn = document.getElementById('zpl-all');
-const printAllBtn = document.getElementById('print-all');
+// const zplAllBtn = document.getElementById('zpl-all');
+// const printAllBtn = document.getElementById('print-all');
+const printAllPdfBtn = document.getElementById('print-all-pdf');
 const printerSelect = document.getElementById('printerName');
 
 let lastData = null;
@@ -20,21 +21,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const opt = document.createElement('option');
         opt.value = p.name;
         opt.textContent = p.name + (p.name === def ? ' (default)' : '');
-        if (!printerSelect.value && p.name === def) {
-          // keep "(default)" selection empty to use OS default; optional:
-          // printerSelect.value = '';
-        }
+        // If you want to automatically select the default printer, uncomment the next line:
+        // if (!printerSelect.value && p.name === def) printerSelect.value = p.name;
         printerSelect.appendChild(opt);
       }
     }
-  } catch {
+  } catch (err) {
+    console.error('Failed to fetch printers:', err);
     // ignore; user can still print to default
   }
-});
 
-toggleRawBtn.addEventListener('click', () => {
-  if (!output.hasAttribute('hidden')) output.setAttribute('hidden', 'hidden');
-  else output.removeAttribute('hidden');
+  toggleRawBtn.addEventListener('click', () => {
+    if (!output.hasAttribute('hidden')) {
+      output.setAttribute('hidden', '');
+    } else {
+      output.removeAttribute('hidden');
+    }
+  });
 });
 
 form.addEventListener('submit', async (e) => {
@@ -99,17 +102,17 @@ function renderResults(data) {
       )}</div>
         </td>
         <td>
-          <div class="small">Shipped Qty: ${safe(r['Shipped'])}</div>
-          <div class="small">Expected Qty: ${safe(r['Expected'])}</div>
-          <div class="small">Actual Qty: ${safe(r['Actual'])}</div>
+          <div class="small">Shp: ${safe(r['Shipped'])}</div>
+          <div class="small">Exp: ${safe(r['Expected'])}</div>
+          <div class="small">Act: ${safe(r['Actual'])}</div>
           <div class="small">${safe(r['Instructions'])}</div>
         </td>
         <td>
           <div class="action-bar">
             <button data-action="pdf" data-idx="${idx}">Preview PDF (${qty})</button>
-            <button data-action="zpl" data-idx="${idx}">Download ZPL (${qty})</button>
+            <!-- <button data-action="zpl" data-idx="${idx}">Download ZPL (${qty})</button> -->
             <button data-action="print-os" data-idx="${idx}">Print</button>
-            <button data-action="print-ip" data-idx="${idx}">Print (Zebra IP)</button>
+            <!-- <button data-action="print-ip" data-idx="${idx}">Print (Zebra IP)</button> -->
           </div>
         </td>
       </tr>
@@ -139,14 +142,30 @@ function renderResults(data) {
 }
 
 function safe(v) {
-  return v == null ? '' : String(v);
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 async function onActionClick(e) {
   const idx = Number(e.currentTarget.getAttribute('data-idx'));
   const action = e.currentTarget.getAttribute('data-action');
-  const zebraHost = document.getElementById('zebraHost').value.trim();
-  const selectedPrinter = printerSelect.value || ''; // empty => default OS printer
+  const zebraHostElem = document.getElementById('zebraHost');
+  // zebraHost will be declared and used later in the function
+  if (
+    !lastData ||
+    !Array.isArray(lastData.results) ||
+    idx < 0 ||
+    idx >= lastData.results.length
+  ) {
+    alert('Invalid item index.');
+    return;
+  }
+
   const item = lastData.results[idx];
   const count = Number(item['Actual']) || 1;
 
@@ -160,9 +179,7 @@ async function onActionClick(e) {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
-  }
-
-  if (action === 'zpl') {
+  } else if (action === 'zpl') {
     const res = await fetch('/api/labels/zpl', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -173,26 +190,30 @@ async function onActionClick(e) {
     const blob = new Blob([zpl], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `label-${item['Order #']}-${item['SKU']}.zpl`;
+    // Sanitize filename to remove invalid characters
+    function sanitizeFilename(str) {
+      return String(str).replace(/[^a-z0-9_\-\.]/gi, '_');
+    }
+    a.download = `label_${sanitizeFilename(item['SKU'] || 'item')}_${
+      idx + 1
+    }.zpl`;
     a.click();
-  }
-
-  if (action === 'print-os') {
+  } else if (action === 'print-os') {
+    const selectedPrinter = printerSelect.value;
+    const bodyData = { item, count };
+    if (selectedPrinter) {
+      bodyData.printerName = selectedPrinter;
+    }
     const res = await fetch('/api/labels/print-pdf-os', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        item,
-        count,
-        printerName: selectedPrinter || undefined,
-      }),
+      body: JSON.stringify(bodyData),
     });
     const data = await res.json();
     if (!data.ok) return alert('OS print failed: ' + (data.error || 'Unknown'));
     alert(`Sent ${count} page PDF to ${data.result.printer}`);
-  }
-
-  if (action === 'print-ip') {
+  } else if (action === 'print-ip') {
+    const zebraHost = zebraHostElem.value.trim();
     if (!zebraHost) return alert('Enter Zebra IP first');
     const res = await fetch('/api/labels/print-zpl', {
       method: 'POST',
@@ -225,43 +246,62 @@ pdfAllBtn.addEventListener('click', async () => {
   window.open(url, '_blank');
 });
 
-zplAllBtn.addEventListener('click', async () => {
+// zplAllBtn.addEventListener('click', async () => {
+//   if (
+//     !lastData?.ok ||
+//     !Array.isArray(lastData.results) ||
+//     !lastData.results.length
+//   )
+//     return alert('Search first');
+//   const res = await fetch('/api/labels/zpl-all', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ items: lastData.results }),
+//   });
+//   if (!res.ok) return alert('Failed to build batch ZPL');
+//   const zpl = await res.text();
+//   const blob = new Blob([zpl], { type: 'text/plain' });
+//   const a = document.createElement('a');
+//   a.href = URL.createObjectURL(blob);
+//   a.download = `labels-batch.zpl`;
+//   a.click();
+// });
+
+// printAllBtn.addEventListener('click', async () => {
+//   if (
+//     !lastData?.ok ||
+//     !Array.isArray(lastData.results) ||
+//     !lastData.results.length
+//   )
+//     return alert('Search first');
+//   const zebraHost = document.getElementById('zebraHost').value.trim();
+//   if (!zebraHost) return alert('Enter Zebra IP first');
+//   const res = await fetch('/api/labels/print-all', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ items: lastData.results, zebraHost }),
+//   });
+//   const data = await res.json();
+//   if (!data.ok)
+//     return alert('Batch print failed: ' + (data.error || 'Unknown'));
+//   alert(`Sent ${data.total} label(s) to ${zebraHost}`);
+// });
+
+// Print All (PDF) button logic
+printAllPdfBtn.addEventListener('click', async () => {
   if (
     !lastData?.ok ||
     !Array.isArray(lastData.results) ||
     !lastData.results.length
   )
     return alert('Search first');
-  const res = await fetch('/api/labels/zpl-all', {
+  const res = await fetch('/api/labels/print-pdf-all-os', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items: lastData.results }),
   });
-  if (!res.ok) return alert('Failed to build batch ZPL');
-  const zpl = await res.text();
-  const blob = new Blob([zpl], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `labels-batch.zpl`;
-  a.click();
-});
-
-printAllBtn.addEventListener('click', async () => {
-  if (
-    !lastData?.ok ||
-    !Array.isArray(lastData.results) ||
-    !lastData.results.length
-  )
-    return alert('Search first');
-  const zebraHost = document.getElementById('zebraHost').value.trim();
-  if (!zebraHost) return alert('Enter Zebra IP first');
-  const res = await fetch('/api/labels/print-all', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items: lastData.results, zebraHost }),
-  });
   const data = await res.json();
   if (!data.ok)
     return alert('Batch print failed: ' + (data.error || 'Unknown'));
-  alert(`Sent ${data.total} label(s) to ${zebraHost}`);
+  alert(`Sent all PDF labels to printer.`);
 });
