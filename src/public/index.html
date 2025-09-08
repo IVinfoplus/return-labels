@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Infoplus Returns Lookup</title>
+    <title>Return Labels</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -10,10 +10,10 @@
     <header class="app-header">
       <img src="images/iv-app-logo.png" alt="App Logo" class="app-logo" />
       <div class="title-wrap">
-        <h1>Infoplus Returns Lookup</h1>
+        <h1>Impressions Vanity Return Labels</h1>
         <p>
-          Search by <code>originalOrderNo</code>, preview JSON, and print 4×6
-          labels (portrait only).
+          Search by <code>originalOrderNo</code>, preview JSON, and print 
+          labels.
         </p>
       </div>
     </header>
@@ -31,22 +31,22 @@
             inputmode="numeric"
           />
 
-          <div class="printer-controls">
+<!--           <div class="printer-controls">
             <div class="col">
               <label for="printerName">OS Printer</label>
               <select id="printerName">
                 <option value="">(default)</option>
               </select>
-            </div>
+            </div> -->
 
-            <div class="col">
+<!--             <div class="col">
               <label for="zebraHost">Zebra IP</label>
               <input
                 type="text"
                 id="zebraHost"
                 placeholder="e.g., 192.168.1.50"
               />
-            </div>
+            </div> -->
           </div>
 
           <button type="submit">Search</button>
@@ -59,7 +59,7 @@
           <div class="action-bar">
             <button id="pdf-all">Preview All (PDF)</button>
             <!-- <button id="zpl-all">Download All (ZPL)</button> -->
-            <button id="print-all-pdf">Print All (PDF)</button>
+<!--             <button id="print-all-pdf">Print All (PDF)</button> -->
             <!-- <button id="print-all">Print All (Zebra IP)</button> -->
             <button id="toggle-raw">Toggle Raw JSON</button>
           </div>
@@ -75,3 +75,4 @@
     <script src="main.js"></script>
   </body>
 </html>
+
