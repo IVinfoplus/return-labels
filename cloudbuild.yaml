@@ -4,11 +4,11 @@ steps:
     args:
       - -c
       - |
+        gcloud config set project return-labels-471517
         gcloud run deploy return-labels \
           --source . \
           --region us-central1 \
           --allow-unauthenticated \
-          --update-secrets=API_BASE_URL=API_BASE_URL:latest,API_KEY=API_KEY:latest \
-          --project return-labels-471517
+          --update-secrets=API_BASE_URL=API_BASE_URL:latest,API_KEY=API_KEY:latest
 options:
   logging: CLOUD_LOGGING_ONLY
