@@ -111,7 +111,7 @@ function renderResults(data) {
           <div class="action-bar">
             <button data-action="pdf" data-idx="${idx}">Preview PDF (${qty})</button>
             <!-- <button data-action="zpl" data-idx="${idx}">Download ZPL (${qty})</button> -->
-            <button data-action="print-os" data-idx="${idx}">Print</button>
+            <!-- <button data-action="print-os" data-idx="${idx}">Print</button> -->
             <!-- <button data-action="print-ip" data-idx="${idx}">Print (Zebra IP)</button> -->
           </div>
         </td>
@@ -305,3 +305,4 @@ printAllPdfBtn.addEventListener('click', async () => {
     return alert('Batch print failed: ' + (data.error || 'Unknown'));
   // No confirmation alert after printing
 });
+
