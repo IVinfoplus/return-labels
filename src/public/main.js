@@ -211,7 +211,7 @@ async function onActionClick(e) {
     });
     const data = await res.json();
     if (!data.ok) return alert('OS print failed: ' + (data.error || 'Unknown'));
-    alert(`Sent ${count} page PDF to ${data.result.printer}`);
+    // No confirmation alert after printing
   } else if (action === 'print-ip') {
     const zebraHost = zebraHostElem.value.trim();
     if (!zebraHost) return alert('Enter Zebra IP first');
@@ -223,7 +223,7 @@ async function onActionClick(e) {
     const data = await res.json();
     if (!data.ok)
       return alert('Print (IP) failed: ' + (data.error || 'Unknown'));
-    alert(`Sent ${count} label(s) to ${zebraHost}`);
+    // No confirmation alert after printing
   }
 }
 
@@ -303,5 +303,5 @@ printAllPdfBtn.addEventListener('click', async () => {
   const data = await res.json();
   if (!data.ok)
     return alert('Batch print failed: ' + (data.error || 'Unknown'));
-  alert(`Sent all PDF labels to printer.`);
+  // No confirmation alert after printing
 });
