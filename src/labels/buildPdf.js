@@ -88,7 +88,7 @@ y += 10;
 line('Return Status', item.returnOrderStatus);
 line('Reason', item.returnReason);
 line('Category', item.returnCategory);
-line('Instructions', item.customfield.get("ivReturnInstructions"));
+line('Instructions', item.customfield.get("instructions"));
 
 // // --- Custom Instructions logic ---
 // const customFieldLabels = {
@@ -236,5 +236,6 @@ async function buildReturnLabelPdfMulti(items) {
 }
 
 module.exports = { buildReturnLabelPdf, buildReturnLabelPdfMulti };
+
 
 
