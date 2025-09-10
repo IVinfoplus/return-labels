@@ -23,3 +23,4 @@ as a first step before we render 4" x 6" labels (portrait/landscape).
 - Add a printable 4x6 label (both orientations) populated from the fetched data.
 - Optionally add field mapping and validation of the response.
 
+test
