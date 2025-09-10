@@ -32,7 +32,7 @@ function shapeToLabelLines(rawOrders) {
         'Return Status': order.returnOrderStatus,
         'Reason': order.returnReason,
         'Category': order.returnCategory,
-        'Instructions': order.returnInstructions,
+        'Instructions': (order.customFields && order.customFields.instructions) ?? null,
         'Rcpt Id': li.returnItemReceiptId,
         'SKU': li.sku,
         'Shipped': li.originalShippedQuantity,
@@ -73,3 +73,4 @@ router.get('/search', async (req, res) => {
 });
 
 module.exports = router;
+
