@@ -70,25 +70,51 @@ async function drawLabel(doc, item) {
 
   // --- Fields block ---
   let y = 94 + yOffset;
-  const dateStr = formatDateMMDDYYYY(item.createDate);
-  doc.fontSize(10);
+const dateStr = formatDateMMDDYYYY(item.createDate);
+doc.fontSize(10);
 
-  const line = (k, v) => {
-    doc.text(`${k}: ${v ?? ''}`, LEFT, y, { width: LINE_W });
-    y += 16;
-  };
+const line = (k, v) => {
+  doc.text(`${k}: ${v ?? ''}`, LEFT, y, { width: LINE_W });
+  y += 16;
+};
 
-  line('Date', dateStr);
-  line('Order #', item.originalOrderNo);
-  line('ASN #', item.returnAsnId);
+line('Date', dateStr);
+line('Order #', item.originalOrderNo);
+line('ASN #', item.returnAsnId);
 
-  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
-  y += 10;
+doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
+y += 10;
 
-  line('Return Status', item.returnOrderStatus);
-  line('Reason', item.returnReason);
-  line('Category', item.returnCategory);
-  line('Instructions', item.returnInstructions);
+line('Return Status', item.returnOrderStatus);
+line('Reason', item.returnReason);
+line('Category', item.returnCategory);
+
+// --- Custom Instructions logic ---
+const customFieldLabels = {
+  warehouseSale: 'Warehouse Sale',
+  dispose: 'Dispose',
+  returnToStock: 'Return to Stock',
+  reship: 'Reship',
+};
+
+let instructionsValue = '';
+if (item.customFields) {
+  const trueFields = Object.entries(customFieldLabels)
+    .filter(([key]) => item.customFields[key])
+    .map(([key, label]) => label);
+
+  if (trueFields.length > 1) {
+    // In Node.js, you can't show a popup, but you can throw an error.
+    throw new Error(
+      'Multiple Return Instructions are marked true. Please edit so only one is marked true and try again.'
+    );
+  } else if (trueFields.length === 1) {
+    instructionsValue = trueFields[0];
+  }
+}
+if (!instructionsValue) instructionsValue = item.returnInstructions;
+
+line('Instructions', instructionsValue);
 
   doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
   y += 10;
@@ -209,3 +235,4 @@ async function buildReturnLabelPdfMulti(items) {
 }
 
 module.exports = { buildReturnLabelPdf, buildReturnLabelPdfMulti };
+
