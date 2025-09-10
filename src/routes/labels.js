@@ -26,7 +26,7 @@ function normalizeItem(item) {
     returnOrderStatus: item['Return Status'],
     returnReason: item['Reason'],
     returnCategory: item['Category'],
-    returnInstructions: item['Instructions'],
+    instructions: item['Instructions'],
     returnItemReceiptId: item['Receipt Id'] ?? item['Rcpt Id'], // accept legacy key
     sku: item['SKU'],
     originalShippedQuantity: item['Shipped'] ?? item['Shipped Qty'],
@@ -256,3 +256,4 @@ router.get('/printers', async (_req, res) => {
 });
 
 module.exports = router;
+
