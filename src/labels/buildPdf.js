@@ -88,33 +88,34 @@ y += 10;
 line('Return Status', item.returnOrderStatus);
 line('Reason', item.returnReason);
 line('Category', item.returnCategory);
+line('Instructions', item.customfield.get("ivReturnInstructions"));
 
-// --- Custom Instructions logic ---
-const customFieldLabels = {
-  warehouseSale: 'Warehouse Sale',
-  dispose: 'Dispose',
-  returnToStock: 'Return to Stock',
-  reship: 'Reship',
-};
+// // --- Custom Instructions logic ---
+// const customFieldLabels = {
+//   warehouseSale: 'Warehouse Sale',
+//   dispose: 'Dispose',
+//   returnToStock: 'Return to Stock',
+//   reship: 'Reship',
+// };
 
-let instructionsValue = '';
-if (item.customFields) {
-  const trueFields = Object.entries(customFieldLabels)
-    .filter(([key]) => item.customFields[key])
-    .map(([key, label]) => label);
+// let instructionsValue = '';
+// if (item.customFields) {
+//   const trueFields = Object.entries(customFieldLabels)
+//     .filter(([key]) => item.customFields[key])
+//     .map(([key, label]) => label);
 
-  if (trueFields.length > 1) {
-    // In Node.js, you can't show a popup, but you can throw an error.
-    throw new Error(
-      'Multiple Return Instructions are marked true. Please edit so only one is marked true and try again.'
-    );
-  } else if (trueFields.length === 1) {
-    instructionsValue = trueFields[0];
-  }
-}
-if (!instructionsValue) instructionsValue = item.returnInstructions;
+//   if (trueFields.length > 1) {
+//     // In Node.js, you can't show a popup, but you can throw an error.
+//     throw new Error(
+//       'Multiple Return Instructions are marked true. Please edit so only one is marked true and try again.'
+//     );
+//   } else if (trueFields.length === 1) {
+//     instructionsValue = trueFields[0];
+//   }
+// }
+// if (!instructionsValue) instructionsValue = item.returnInstructions;
 
-line('Instructions', instructionsValue);
+// line('Instructions', instructionsValue);
 
   doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
   y += 10;
@@ -235,4 +236,5 @@ async function buildReturnLabelPdfMulti(items) {
 }
 
 module.exports = { buildReturnLabelPdf, buildReturnLabelPdfMulti };
+
 
