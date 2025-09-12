@@ -15,7 +15,7 @@ function shapeToLabelLines(rawOrders) {
   const lines = [];
   for (const order of rawOrders) {
     const base = {
-      _meta: { _lobId: order.lobId }
+      _meta: { _lobId: order.lobId },
     };
 
     const origNum =
@@ -26,20 +26,21 @@ function shapeToLabelLines(rawOrders) {
     for (const li of order.returnOrderLineItemList || []) {
       lines.push({
         ...base,
-        'Date': order.createDate,
+        Date: order.createDate,
         'Order #': origNum,
         'ASN #': order.returnAsnId,
         'Return Status': order.returnOrderStatus,
-        'Reason': order.returnReason,
-        'Category': order.returnCategory,
-        'Instructions': (order.customFields && order.customFields.instructions) ?? null,
+        Reason: order.returnReason,
+        Category: order.returnCategory,
+        Instructions:
+          (order.customFields && order.customFields.instructions) ?? null,
         'Rcpt Id': li.returnItemReceiptId,
-        'SKU': li.sku,
-        'Shipped': li.originalShippedQuantity,
-        'Expected': li.expectedReturnQuantity,
-        'Actual': li.actualReturnQuantity,
-        'Condition': li.returnOrderLineInspectionStatus,
-        'IVC Status': (li.customFields && li.customFields.ivcStatus) ?? null
+        SKU: li.sku,
+        Shipped: li.originalShippedQuantity,
+        Expected: li.expectedReturnQuantity,
+        Actual: li.actualReturnQuantity,
+        Condition: li.returnOrderLineInspectionStatus,
+        'IVC Status': (li.customFields && li.customFields.ivcStatus) ?? null,
       });
     }
   }
@@ -54,23 +55,62 @@ router.get('/search', async (req, res) => {
   try {
     const { originalOrderNo } = req.query;
     if (!originalOrderNo) {
-      return res
-        .status(400)
-        .json({ ok: false, error: 'Query param "originalOrderNo" is required' });
+      return res.status(400).json({
+        ok: false,
+        error: 'Query param "originalOrderNo" is required',
+      });
     }
 
     const raw = await fetchReturnOrders(originalOrderNo);
     const lines = shapeToLabelLines(Array.isArray(raw) ? raw : []);
     return res.json({ ok: true, count: lines.length, results: lines });
   } catch (err) {
-    console.error('Error searching return orders:', err?.details || err.message);
+    console.error(
+      'Error searching return orders:',
+      err?.details || err.message
+    );
     return res.status(502).json({
       ok: false,
       message: 'Infoplus request failed',
-      details: err?.details || err.message
+      details: err?.details || err.message,
     });
   }
 });
 
-module.exports = router;
+/**
+ * POST /api/returns/updateInstructions
+ * Body: { originalOrderNo, instructions }
+ * Updates customFields.instructions for all matching return orders.
+ */
+const { updateReturnOrderInstructions } = require('../lib/infoplus');
+router.post('/updateInstructions', async (req, res) => {
+  const { originalOrderNo, instructions } = req.body;
+  if (!originalOrderNo || !instructions) {
+    return res
+      .status(400)
+      .json({ ok: false, error: 'Missing originalOrderNo or instructions' });
+  }
+  try {
+    const ros = await fetchReturnOrders(originalOrderNo);
+    if (!ros || !ros.length) {
+      return res
+        .status(404)
+        .json({ ok: false, error: 'No return orders found' });
+    }
+    let failures = 0;
+    for (const ro of ros) {
+      const result = await updateReturnOrderInstructions(ro.id, instructions);
+      if (!result.ok) failures++;
+    }
+    if (failures > 0) {
+      return res
+        .status(502)
+        .json({ ok: false, error: `${failures} update(s) failed` });
+    }
+    return res.json({ ok: true, updated: ros.length });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
+module.exports = router;

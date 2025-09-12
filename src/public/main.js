@@ -105,7 +105,16 @@ function renderResults(data) {
           <div class="small">Shp: ${safe(r['Shipped'])}</div>
           <div class="small">Exp: ${safe(r['Expected'])}</div>
           <div class="small">Act: ${safe(r['Actual'])}</div>
-          <div class="small">${safe(r['Instructions'])}</div>
+          <div>
+            <label for="instructions-${idx}" class="small">Instructions:</label>
+            <select id="instructions-${idx}" class="instructions-dropdown">
+              <option value="">(Select)</option>
+              <option value="Dispose">Dispose</option>
+              <option value="Reship">Reship</option>
+              <option value="Return to Stock">Return to Stock</option>
+              <option value="Warehouse Sale">Warehouse Sale</option>
+            </select>
+          </div>
         </td>
         <td>
           <div class="action-bar">
@@ -139,6 +148,78 @@ function renderResults(data) {
   resultsDiv.querySelectorAll('button[data-action]').forEach((btn) => {
     btn.addEventListener('click', onActionClick);
   });
+
+  // Add event listeners to instruction dropdowns to update the right-side list
+  data.results.forEach((r, idx) => {
+    const dropdown = document.getElementById(`instructions-${idx}`);
+    if (dropdown) {
+      dropdown.addEventListener('change', () =>
+        updateInstructionsList(data.results)
+      );
+    }
+  });
+  // Initial list render
+  updateInstructionsList(data.results);
+
+  function updateInstructionsList(results) {
+    const list = document.getElementById('instructions-list');
+    if (!list) return;
+    list.innerHTML = '';
+    results.forEach((item, idx) => {
+      const dropdown = document.getElementById(`instructions-${idx}`);
+      const instruction = dropdown
+        ? dropdown.value
+        : item['Instructions'] || '';
+      if (instruction) {
+        const sku = item['SKU'] || '';
+        const li = document.createElement('li');
+        li.textContent = `${idx + 1}) ${sku} - ${instruction}`;
+        list.appendChild(li);
+      }
+    });
+  }
+
+  document
+    .getElementById('update-instructions-btn')
+    .addEventListener('click', async () => {
+      // Get selected instruction and SKU from dropdowns (first non-empty)
+      const results = lastData?.results || [];
+      const originalOrderNo = document
+        .getElementById('originalOrderNo')
+        .value.trim();
+      let selectedInstruction = '';
+      let selectedSku = '';
+      for (let idx = 0; idx < results.length; idx++) {
+        const dropdown = document.getElementById(`instructions-${idx}`);
+        if (dropdown && dropdown.value) {
+          selectedInstruction = dropdown.value;
+          selectedSku = results[idx]['SKU'] || '';
+          break;
+        }
+      }
+      if (!originalOrderNo || !selectedInstruction || !selectedSku) {
+        alert('Please search and select an instruction before updating.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/returns/updateInstructions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            originalOrderNo,
+            instructions: `${selectedSku} - ${selectedInstruction}`,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert('Instructions updated!');
+        } else {
+          alert('Update failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Update failed: ' + err.message);
+      }
+    });
 }
 
 function safe(v) {
@@ -166,8 +247,22 @@ async function onActionClick(e) {
     return;
   }
 
-  const item = lastData.results[idx];
+  const item = { ...lastData.results[idx] };
+  // Get selected instructions value from dropdown
+  const dropdown = document.getElementById(`instructions-${idx}`);
+  if (dropdown) {
+    item['Instructions'] = dropdown.value;
+  }
   const count = Number(item['Actual']) || 1;
+
+  // Build update payload for this line
+  const updatePayload = [
+    {
+      lineItemId: item['LineItemId'] || item['lineItemId'],
+      sku: item['SKU'],
+      instruction: item['Instructions'],
+    },
+  ];
 
   if (action === 'pdf') {
     const res = await fetch('/api/labels/preview-pdf', {
@@ -179,6 +274,12 @@ async function onActionClick(e) {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+    // Update instructions for this line
+    await fetch('/api/labels/update-instructions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: updatePayload }),
+    });
   } else if (action === 'zpl') {
     const res = await fetch('/api/labels/zpl', {
       method: 'POST',
@@ -190,7 +291,6 @@ async function onActionClick(e) {
     const blob = new Blob([zpl], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    // Sanitize filename to remove invalid characters
     function sanitizeFilename(str) {
       return String(str).replace(/[^a-z0-9_\-\.]/gi, '_');
     }
@@ -198,6 +298,12 @@ async function onActionClick(e) {
       idx + 1
     }.zpl`;
     a.click();
+    // Update instructions for this line
+    await fetch('/api/labels/update-instructions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: updatePayload }),
+    });
   } else if (action === 'print-os') {
     const selectedPrinter = printerSelect.value;
     const bodyData = { item, count };
@@ -211,7 +317,12 @@ async function onActionClick(e) {
     });
     const data = await res.json();
     if (!data.ok) return alert('OS print failed: ' + (data.error || 'Unknown'));
-    // No confirmation alert after printing
+    // Update instructions for this line
+    await fetch('/api/labels/update-instructions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: updatePayload }),
+    });
   } else if (action === 'print-ip') {
     const zebraHost = zebraHostElem.value.trim();
     if (!zebraHost) return alert('Enter Zebra IP first');
@@ -223,7 +334,12 @@ async function onActionClick(e) {
     const data = await res.json();
     if (!data.ok)
       return alert('Print (IP) failed: ' + (data.error || 'Unknown'));
-    // No confirmation alert after printing
+    // Update instructions for this line
+    await fetch('/api/labels/update-instructions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: updatePayload }),
+    });
   }
 }
 
@@ -235,15 +351,37 @@ pdfAllBtn.addEventListener('click', async () => {
     !lastData.results.length
   )
     return alert('Search first');
+  // Build items array with current dropdown selections
+  const results = lastData?.results || [];
+  const itemsWithInstructions = results.map((item, idx) => {
+    const dropdown = document.getElementById(`instructions-${idx}`);
+    return {
+      ...item,
+      Instructions: dropdown ? dropdown.value : item['Instructions'] || '',
+    };
+  });
   const res = await fetch('/api/labels/preview-pdf-all', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items: lastData.results }),
+    body: JSON.stringify({ items: itemsWithInstructions }),
   });
   if (!res.ok) return alert('Failed to render batch PDF');
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
+  // Build update payload for all lines
+  const updatePayload = itemsWithInstructions
+    .map((item, idx) => ({
+      lineItemId: item['LineItemId'] || item['lineItemId'],
+      sku: item['SKU'],
+      instruction: item['Instructions'],
+    }))
+    .filter((i) => i.instruction);
+  await fetch('/api/labels/update-instructions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: updatePayload }),
+  });
 });
 
 // zplAllBtn.addEventListener('click', async () => {
@@ -305,4 +443,3 @@ printAllPdfBtn.addEventListener('click', async () => {
     return alert('Batch print failed: ' + (data.error || 'Unknown'));
   // No confirmation alert after printing
 });
-

@@ -70,52 +70,61 @@ async function drawLabel(doc, item) {
 
   // --- Fields block ---
   let y = 94 + yOffset;
-const dateStr = formatDateMMDDYYYY(item.createDate);
-doc.fontSize(10);
+  const dateStr = formatDateMMDDYYYY(item.createDate);
+  doc.fontSize(10);
 
-const line = (k, v) => {
-  doc.text(`${k}: ${v ?? ''}`, LEFT, y, { width: LINE_W });
-  y += 16;
-};
+  const line = (k, v) => {
+    doc.text(`${k}: ${v ?? ''}`, LEFT, y, { width: LINE_W });
+    y += 16;
+  };
 
-line('Date', dateStr);
-line('Order #', item.originalOrderNo);
-line('ASN #', item.returnAsnId);
+  line('Date', dateStr);
+  line('Order #', item.originalOrderNo);
+  line('ASN #', item.returnAsnId);
 
-doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
-y += 10;
+  doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
+  y += 10;
 
-line('Return Status', item.returnOrderStatus);
-line('Reason', item.returnReason);
-line('Category', item.returnCategory);
-line('Instructions', item.customfields.get("instructions"));
+  line('Return Status', item.returnOrderStatus);
+  line('Reason', item.returnReason);
+  line('Category', item.returnCategory);
+  // Use custom field 'instructionDetails' if available, fallback to legacy 'instructions' or 'returnInstructions' if needed
+  let instructionsValue = '';
+  if (item.customfields && typeof item.customfields.get === 'function') {
+    instructionsValue = item.customfields.get('instructionDetails') ?? '';
+  } else if (item.instructions) {
+    instructionsValue = item.instructions;
+  } else if (item.returnInstructions) {
+    instructionsValue = item.returnInstructions;
+  }
+  line('IVC Status', item.ivcStatus);
 
-// // --- Custom Instructions logic ---
-// const customFieldLabels = {
-//   warehouseSale: 'Warehouse Sale',
-//   dispose: 'Dispose',
-//   returnToStock: 'Return to Stock',
-//   reship: 'Reship',
-// };
+  // // --- Custom Instructions logic ---
+  // const customFieldLabels = {
+  //   warehouseSale: 'Warehouse Sale',
+  //   dispose: 'Dispose',
+  //   returnToStock: 'Return to Stock',
+  //   reship: 'Reship',
+  // };
 
-// let instructionsValue = '';
-// if (item.customFields) {
-//   const trueFields = Object.entries(customFieldLabels)
-//     .filter(([key]) => item.customFields[key])
-//     .map(([key, label]) => label);
+  // let instructionsValue = '';
+  // if (item.customFields) {
+  //   const trueFields = Object.entries(customFieldLabels)
+  //     .filter(([key]) => item.customFields[key])
+  //     .map(([key, label]) => label);
 
-//   if (trueFields.length > 1) {
-//     // In Node.js, you can't show a popup, but you can throw an error.
-//     throw new Error(
-//       'Multiple Return Instructions are marked true. Please edit so only one is marked true and try again.'
-//     );
-//   } else if (trueFields.length === 1) {
-//     instructionsValue = trueFields[0];
-//   }
-// }
-// if (!instructionsValue) instructionsValue = item.returnInstructions;
+  //   if (trueFields.length > 1) {
+  //     // In Node.js, you can't show a popup, but you can throw an error.
+  //     throw new Error(
+  //       'Multiple Return Instructions are marked true. Please edit so only one is marked true and try again.'
+  //     );
+  //   } else if (trueFields.length === 1) {
+  //     instructionsValue = trueFields[0];
+  //   }
+  // }
+  // if (!instructionsValue) instructionsValue = item.returnInstructions;
 
-// line('Instructions', instructionsValue);
+  // line('Instructions', instructionsValue);
 
   doc.moveTo(LEFT, y).lineTo(RIGHT, y).stroke();
   y += 10;
@@ -148,25 +157,37 @@ line('Instructions', item.customfields.get("instructions"));
   // --- SKU + barcode ---
   const CONTENT_BOTTOM = IVC_Y - 6;
   const skuText = String(item.sku ?? '');
-  doc
-    .fontSize(16)
-    .text(skuText, LEFT, Math.min(y, CONTENT_BOTTOM - 90), {
-      width: LINE_W,
-      align: 'center',
-    });
+  doc.fontSize(16).text(skuText, LEFT, Math.min(y, CONTENT_BOTTOM - 90), {
+    width: LINE_W,
+    align: 'center',
+  });
   y += 22;
 
   const bcY = Math.min(y, CONTENT_BOTTOM - 58);
   doc.image(bcBuffer, LEFT, bcY, { width: LINE_W });
   y = bcY + 58;
 
-  // --- IVC footer ---
-  if (item.ivcStatus) {
-    const ivc = String(item.ivcStatus);
+  // --- Instructions just below barcode (bold, no label) ---
+  if (instructionsValue) {
+    y += 18; // Increase offset below barcode
+    // Dynamically reduce font size if needed to fit
+    let fontSize = 20;
+    doc.font('Helvetica-Bold');
+    let textWidth = doc.widthOfString(instructionsValue, {
+      font: 'Helvetica-Bold',
+      size: fontSize,
+    });
+    while (textWidth > LINE_W && fontSize > 12) {
+      fontSize -= 1;
+      textWidth = doc.widthOfString(instructionsValue, {
+        font: 'Helvetica-Bold',
+        size: fontSize,
+      });
+    }
     doc
-      .font('Helvetica-Bold')
-      .fontSize(20)
-      .text(ivc, LEFT, IVC_Y + 4, { width: LINE_W, align: 'center' });
+      .fontSize(fontSize)
+      .text(instructionsValue, LEFT, y, { width: LINE_W, align: 'center' });
+    y += fontSize + 8;
   }
 
   doc.font('Helvetica').fontSize(10);
@@ -236,8 +257,3 @@ async function buildReturnLabelPdfMulti(items) {
 }
 
 module.exports = { buildReturnLabelPdf, buildReturnLabelPdfMulti };
-
-
-
-
-

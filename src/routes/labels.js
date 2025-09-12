@@ -1,9 +1,9 @@
-// ...existing code...
-
 const express = require('express');
+const axios = require('axios');
+const router = express.Router();
 const fs = require('fs');
 
-const { buildReturnLabelZPL } = require('../labels/zplTemplate'); // CJS
+// ...existing code...
 const {
   buildReturnLabelPdf,
   buildReturnLabelPdfMulti,
@@ -15,7 +15,114 @@ const {
   getDefaultPrinterName,
 } = require('../print/osPrint');
 
-const router = express.Router();
+// Update return order and line item instructions using Infoplus API
+router.post('/update-instructions', async (req, res) => {
+  const { items } = req.body || {};
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({ ok: false, error: 'items[] required' });
+  }
+  // Get orderNo from first item (assumes all items are for same order)
+  const orderNo =
+    items[0]?.orderNo || items[0]?.OrderNo || items[0]?.originalOrderNo;
+  // Build summary string for order-level instructions
+  const summary = items.map((i) => `${i.sku} - ${i.instruction}`).join(', ');
+  const API_KEY = process.env.API_KEY;
+  const BASE_URL =
+    process.env.BASE_URL ||
+    'https://impressionsvanity.infopluswms.com/infoplus-wms/api/beta';
+  try {
+    // Update each line item (PUT to /beta/returnOrder/customFields)
+    for (const item of items) {
+      if (!item.lineItemId || !item.instruction) continue;
+      await axios.put(
+        `${BASE_URL}/returnOrder/customFields`,
+        {
+          returnOrderLineId: item.lineItemId,
+          customFields: { instructions: item.instruction },
+        },
+        {
+          headers: { 'API-Key': API_KEY },
+        }
+      );
+    }
+    // Always include SKU in order-level instructions, even for single-line orders
+    let orderInstructions = summary;
+    // If only one item, and its instruction does not already include the SKU, prepend it
+    if (items.length === 1) {
+      const item = items[0];
+      if (item.sku && item.instruction && !summary.startsWith(item.sku)) {
+        orderInstructions = `${item.sku} - ${item.instruction}`;
+      }
+    }
+    if (orderNo && orderInstructions) {
+      await axios.put(
+        `${BASE_URL}/returnOrder/customFields`,
+        {
+          orderNo,
+          customFields: { instructions: orderInstructions },
+        },
+        {
+          headers: { 'API-Key': API_KEY },
+        }
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+// ...existing code...
+
+// ...existing code...
+
+// Update return order and line item instructions using Infoplus API
+router.post('/update-instructions', async (req, res) => {
+  const { items } = req.body || {};
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({ ok: false, error: 'items[] required' });
+  }
+  // Get orderNo from first item (assumes all items are for same order)
+  const orderNo =
+    items[0]?.orderNo || items[0]?.OrderNo || items[0]?.originalOrderNo;
+  // Build summary string for order-level instructions
+  const summary = items.map((i) => `${i.sku} - ${i.instruction}`).join(', ');
+  const API_KEY = process.env.API_KEY;
+  const BASE_URL =
+    process.env.BASE_URL ||
+    'https://impressionsvanity.infopluswms.com/infoplus-wms/api/beta';
+  try {
+    // Update each line item (PUT to /beta/returnOrder/customFields)
+    for (const item of items) {
+      if (!item.lineItemId || !item.instruction) continue;
+      await axios.put(
+        `${BASE_URL}/returnOrder/customFields`,
+        {
+          returnOrderLineId: item.lineItemId,
+          customFields: { instructions: item.instruction },
+        },
+        {
+          headers: { 'API-Key': API_KEY },
+        }
+      );
+    }
+    // Update main order (PUT to /beta/returnOrder/customFields)
+    if (orderNo && summary) {
+      await axios.put(
+        `${BASE_URL}/returnOrder/customFields`,
+        {
+          orderNo,
+          customFields: { instructions: summary },
+        },
+        {
+          headers: { 'API-Key': API_KEY },
+        }
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 // Convert filtered API shape (with label-keys) back to internal shape for builders
 function normalizeItem(item) {
@@ -26,6 +133,7 @@ function normalizeItem(item) {
     returnOrderStatus: item['Return Status'],
     returnReason: item['Reason'],
     returnCategory: item['Category'],
+    // Use custom field 'Instructions' from order line item level if available
     instructions: item['Instructions'],
     returnItemReceiptId: item['Receipt Id'] ?? item['Rcpt Id'], // accept legacy key
     sku: item['SKU'],
@@ -256,4 +364,3 @@ router.get('/printers', async (_req, res) => {
 });
 
 module.exports = router;
-

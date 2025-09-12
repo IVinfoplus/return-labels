@@ -18,8 +18,8 @@
       </div>
     </header>
 
-    <main class="container">
-      <section class="card">
+    <main class="container" style="display: flex; gap: 32px;">
+      <section class="card" style="flex: 2;">
         <form id="search-form">
           <label for="originalOrderNo">Original Order No</label>
           <input
@@ -53,19 +53,22 @@
         </form>
       </section>
 
-      <section class="card">
+      <section class="card" style="flex: 2;">
         <div class="json-header">
           <h2>Results</h2>
           <div class="action-bar">
             <button id="pdf-all">Preview All (PDF)</button>
-            <!-- <button id="zpl-all">Download All (ZPL)</button> -->
-<!--             <button id="print-all-pdf">Print All (PDF)</button> -->
-            <!-- <button id="print-all">Print All (Zebra IP)</button> -->
             <button id="toggle-raw">Toggle Raw JSON</button>
           </div>
         </div>
         <div id="results"></div>
-<pre id="json-output" class="json-output" hidden></pre>
+        <pre id="json-output" class="json-output" hidden></pre>
+      </section>
+      <aside class="card" style="flex: 1; min-width: 320px; max-width: 400px;">
+        <h2>Selected Instructions</h2>
+        <ul id="instructions-list" style="padding-left: 18px;"></ul>
+        <button id="update-instructions-btn" style="margin-top: 18px; width: 100%;">Update</button>
+      </aside>
     </main>
 
     <footer class="footer">

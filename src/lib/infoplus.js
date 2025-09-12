@@ -16,10 +16,10 @@ const client = axios.create({
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    'API-Key': API_KEY
+    'API-Key': API_KEY,
   },
   timeout: 20000,
-  validateStatus: () => true
+  validateStatus: () => true,
 });
 
 /**
@@ -39,13 +39,38 @@ async function fetchReturnOrders(originalOrderNo) {
       await wait(250 * Math.pow(2, attempt - 1));
       continue;
     }
-    const details = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+    const details =
+      typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
     const err = new Error(`Infoplus error ${res.status}`);
     err.details = details;
     throw err;
   }
 }
 
+/**
+ * Update customFields.instructions for a return order by ID.
+ */
+async function updateReturnOrderInstructions(roId, instructions) {
+  const payload = {
+    id: roId,
+    customFields: { instructions },
+  };
+  try {
+    const res = await client.put('/returnOrder/customFields', payload);
+    if (res.status === 204) {
+      return { ok: true };
+    }
+    return {
+      ok: res.status >= 200 && res.status < 300,
+      status: res.status,
+      data: res.data,
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 module.exports = {
-  fetchReturnOrders
+  fetchReturnOrders,
+  updateReturnOrderInstructions,
 };

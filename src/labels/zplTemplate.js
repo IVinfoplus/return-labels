@@ -6,7 +6,7 @@ function buildReturnLabelZpl(data, logo) {
     returnOrderStatus,
     returnReason,
     returnCategory,
-    returnInstructions,
+    instructions,
     returnItemReceiptId,
     sku,
     originalShippedQuantity,
@@ -39,8 +39,10 @@ ${logo}
 
 ^FO50,260^A0N,28,28^FDStatus: ${returnOrderStatus}^FS
 ^FO300,260^A0N,28,28^FDReason: ${returnReason}^FS
+
+
 ^FO50,300^A0N,28,28^FDCategory: ${returnCategory}^FS
-^FO300,300^A0N,28,28^FDInstr: ${returnInstructions}^FS
+^FO300,300^A0N,28,28^FDIVC Status: ${ivcStatus}^FS
 ^FO50,340^A0N,28,28^FDCondition: ${returnOrderLineInspectionStatus}^FS
 
 /* Divider */
@@ -59,8 +61,9 @@ ${logo}
 ^FO220,580^A0N,28,28^FDExp: ${expectedReturnQuantity}^FS
 ^FO390,580^A0N,28,28^FDAct: ${actualReturnQuantity}^FS
 
-/* IVC Status big & bold at bottom */
-^FO50,650^A0N,50,50^FD${ivcStatus || ''}^FS
+
+/* Instructions big & bold below barcode, max width, fit on one line */
+^FO50,560^A0N,44,44^FD${data.instructionDetails || data.instructions || ''}^FS
 
 ^XZ
 `;
